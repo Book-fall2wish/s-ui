@@ -38,7 +38,7 @@ func (s *ClientService) getById(id string) (*[]model.Client, error) {
 func (s *ClientService) GetAll() (*[]model.Client, error) {
 	db := database.GetDB()
 	var clients []model.Client
-	err := db.Model(model.Client{}).Select("`id`, `enable`, `name`, `desc`, `group`, `inbounds`, `up`, `down`, `volume`, `expiry`").Scan(&clients).Error
+	err := db.Model(model.Client{}).Select("`id`, `enable`, `name`, `desc`, `group`, `inbounds`, `up`, `down`, `volume`, `expiry`, `traffic_reset_day`, `last_traffic_reset`").Scan(&clients).Error
 	if err != nil {
 		return nil, err
 	}
@@ -387,4 +387,71 @@ func (s *ClientService) findInboundsChanges(tx *gorm.DB, client model.Client) ([
 	diffInbounds := common.DiffUintArray(oldInboundIds, newInboundIds)
 
 	return diffInbounds, nil
+}
+
+func (s *ClientService) ResetTrafficForClients() error {
+	db := database.GetDB()
+	now := time.Now()
+	currentDay := now.Day()
+	currentTime := now.Unix()
+
+	var clients []model.Client
+	err := db.Model(model.Client{}).Where("traffic_reset_day > 0").Find(&clients).Error
+	if err != nil {
+		return err
+	}
+
+	tx := db.Begin()
+	defer func() {
+		if err != nil {
+			tx.Rollback()
+		}
+	}()
+
+	for _, client := range clients {
+		shouldReset := false
+
+		// 检查是否需要重置流量
+		if client.TrafficResetDay == currentDay {
+			// 如果设置了重置日，并且当前日期匹配
+			shouldReset = true
+
+			// 如果设置了过期时间，检查是否在过期日期范围内
+			if client.Expiry > 0 && currentTime > client.Expiry {
+				// 客户端已过期，不重置流量
+				shouldReset = false
+			}
+		} else if client.LastTrafficReset > 0 {
+			// 检查是否是周期性重置（例如每30天）
+			// 如果上次重置时间在30天前，则重置
+			resetInterval := 30 * 24 * 60 * 60 // 30天的秒数
+			if currentTime-client.LastTrafficReset >= resetInterval {
+				shouldReset = true
+			}
+		}
+
+		if shouldReset {
+			logger.Debug("Resetting traffic for client: ", client.Name)
+
+			// 重置流量使用情况
+			err = tx.Model(model.Client{}).Where("id = ?", client.Id).Updates(map[string]interface{}{
+				"up":                 int64(0),
+				"down":               int64(0),
+				"last_traffic_reset": currentTime,
+			}).Error
+
+			if err != nil {
+				logger.Warning("Failed to reset traffic for client: ", client.Name, " error: ", err)
+				continue
+			}
+		}
+	}
+
+	if err == nil {
+		tx.Commit()
+	} else {
+		tx.Rollback()
+	}
+
+	return err
 }

@@ -23,18 +23,20 @@ type User struct {
 }
 
 type Client struct {
-	Id       uint            `json:"id" form:"id" gorm:"primaryKey;autoIncrement"`
-	Enable   bool            `json:"enable" form:"enable"`
-	Name     string          `json:"name" form:"name"`
-	Config   json.RawMessage `json:"config,omitempty" form:"config"`
-	Inbounds json.RawMessage `json:"inbounds" form:"inbounds"`
-	Links    json.RawMessage `json:"links,omitempty" form:"links"`
-	Volume   int64           `json:"volume" form:"volume"`
-	Expiry   int64           `json:"expiry" form:"expiry"`
-	Down     int64           `json:"down" form:"down"`
-	Up       int64           `json:"up" form:"up"`
-	Desc     string          `json:"desc" form:"desc"`
-	Group    string          `json:"group" form:"group"`
+	Id               uint            `json:"id" form:"id" gorm:"primaryKey;autoIncrement"`
+	Enable           bool            `json:"enable" form:"enable"`
+	Name             string          `json:"name" form:"name"`
+	Config           json.RawMessage `json:"config,omitempty" form:"config"`
+	Inbounds         json.RawMessage `json:"inbounds" form:"inbounds"`
+	Links            json.RawMessage `json:"links,omitempty" form:"links"`
+	Volume           int64           `json:"volume" form:"volume"`
+	Expiry           int64           `json:"expiry" form:"expiry"`
+	Down             int64           `json:"down" form:"down"`
+	Up               int64           `json:"up" form:"up"`
+	Desc             string          `json:"desc" form:"desc"`
+	Group            string          `json:"group" form:"group"`
+	TrafficResetDay  int             `json:"trafficResetDay" form:"trafficResetDay"`   // 流量重置日，例如每月的某一天
+	LastTrafficReset int64           `json:"lastTrafficReset" form:"lastTrafficReset"` // 上次流量重置时间戳
 }
 
 type Stats struct {

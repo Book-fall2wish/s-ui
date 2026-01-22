@@ -23,6 +23,8 @@ func (c *CronJob) Start(loc *time.Location, trafficAge int) error {
 		c.cron.AddJob("@every 10s", NewStatsJob(trafficAge > 0))
 		// Start expiry job
 		c.cron.AddJob("@every 1m", NewDepleteJob())
+		// Start traffic reset job (daily check)
+		c.cron.AddJob("@daily", NewTrafficResetJob())
 		// Start deleting old stats
 		if trafficAge > 0 {
 			c.cron.AddJob("@daily", NewDelStatsJob(trafficAge))
