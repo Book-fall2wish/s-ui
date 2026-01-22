@@ -55,20 +55,21 @@ jobs:
     
     - name: Create deployment package
       run: |
-        # 创建部署包
-        mkdir -p deploy-package
-        cp s-ui-linux-amd64 deploy-package/s-ui
-        cp s-ui-linux-arm64 deploy-package/s-ui-arm64
-        cp -r web deploy-package/
-        cp s-ui.service deploy-package/
-        cp README.md deploy-package/
+        # 创建AMD64部署包
+        mkdir -p deploy-package-amd64
+        cp s-ui-linux-amd64 deploy-package-amd64/s-ui
+        cp -r web deploy-package-amd64/
+        cp s-ui.service deploy-package-amd64/
+        cp README.md deploy-package-amd64/
+        tar -czf s-ui-deploy-amd64.tar.gz -C deploy-package-amd64 s-ui web s-ui.service README.md
         
-        # 创建压缩包
-        cd deploy-package
-        tar -czf ../s-ui-deploy-amd64.tar.gz s-ui web s-ui.service README.md
-        cd ..
-        rm deploy-package/s-ui-arm64
-        tar -czf ../s-ui-deploy-arm64.tar.gz deploy-package/s-ui-arm64 deploy-package/web deploy-package/s-ui.service deploy-package/README.md
+        # 创建ARM64部署包
+        mkdir -p deploy-package-arm64
+        cp s-ui-linux-arm64 deploy-package-arm64/s-ui
+        cp -r web deploy-package-arm64/
+        cp s-ui.service deploy-package-arm64/
+        cp README.md deploy-package-arm64/
+        tar -czf s-ui-deploy-arm64.tar.gz -C deploy-package-arm64 s-ui web s-ui.service README.md
     
     - name: Upload deployment artifacts
       uses: actions/upload-artifact@v4
