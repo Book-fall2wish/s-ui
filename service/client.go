@@ -424,7 +424,7 @@ func (s *ClientService) ResetTrafficForClients() error {
 		} else if client.LastTrafficReset > 0 {
 			// 检查是否是周期性重置（例如每30天）
 			// 如果上次重置时间在30天前，则重置
-			resetInterval := 30 * 24 * 60 * 60 // 30天的秒数
+			resetInterval := int64(30 * 24 * 60 * 60) // 30天的秒数
 			if currentTime-client.LastTrafficReset >= resetInterval {
 				shouldReset = true
 			}

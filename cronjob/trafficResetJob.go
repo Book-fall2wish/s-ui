@@ -61,7 +61,7 @@ func (s *TrafficResetJob) resetTraffic() error {
 			}
 		} else if client.LastTrafficReset > 0 {
 			// 如果没有设置固定重置日，按周期重置（例如每30天）
-			resetInterval := 30 * 24 * 60 * 60 // 30天的秒数
+			resetInterval := int64(30 * 24 * 60 * 60) // 30天的秒数
 			if currentTime-client.LastTrafficReset >= resetInterval {
 				shouldReset = true
 			}
