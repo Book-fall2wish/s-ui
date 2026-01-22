@@ -71,7 +71,7 @@ jobs:
         tar -czf ../s-ui-deploy-arm64.tar.gz deploy-package/s-ui-arm64 deploy-package/web deploy-package/s-ui.service deploy-package/README.md
     
     - name: Upload deployment artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: s-ui-deploy-packages
         path: |
@@ -86,7 +86,7 @@ jobs:
     
     steps:
     - name: Download artifacts
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: s-ui-deploy-packages
     
@@ -178,7 +178,7 @@ jobs:
       env:
         SERVER_HOST: ${{ secrets.SERVER_HOST }}
         SERVER_USER: ${{ secrets.SERVER_USER }}
-        SERVER_PORT: ${{ secrets.SERVER_PORT || 22 }}
+        SERVER_PORT: ${{ secrets.SERVER_PORT }}
       run: |
         # 检查服务状态
         ssh -p $SERVER_PORT $SERVER_USER@$SERVER_HOST "systemctl status s-ui --no-pager"
