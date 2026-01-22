@@ -1,0 +1,185 @@
+name: Build and Deploy to Server
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+    
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.21'
+    
+    - name: Set up Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+    
+    - name: Install frontend dependencies
+      working-directory: ./frontend
+      run: npm install
+    
+    - name: Build frontend
+      working-directory: ./frontend
+      run: npm run build
+    
+    - name: Prepare web directory
+      run: |
+        mkdir -p web/html
+        rm -rf web/html/*
+        cp -r frontend/dist/* web/html/
+    
+    - name: Build backend (Linux AMD64)
+      run: |
+        CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+          -ldflags "-w -s" \
+          -tags "with_quic,with_grpc,with_utls,with_acme,with_gvisor" \
+          -o s-ui-linux-amd64 main.go
+    
+    - name: Build backend (Linux ARM64)
+      run: |
+        CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build \
+          -ldflags "-w -s" \
+          -tags "with_quic,with_grpc,with_utls,with_acme,with_gvisor" \
+          -o s-ui-linux-arm64 main.go
+    
+    - name: Create deployment package
+      run: |
+        # 创建部署包
+        mkdir -p deploy-package
+        cp s-ui-linux-amd64 deploy-package/s-ui
+        cp s-ui-linux-arm64 deploy-package/s-ui-arm64
+        cp -r web deploy-package/
+        cp s-ui.service deploy-package/
+        cp README.md deploy-package/
+        
+        # 创建压缩包
+        cd deploy-package
+        tar -czf ../s-ui-deploy-amd64.tar.gz s-ui web s-ui.service README.md
+        cd ..
+        rm deploy-package/s-ui-arm64
+        tar -czf ../s-ui-deploy-arm64.tar.gz deploy-package/s-ui-arm64 deploy-package/web deploy-package/s-ui.service deploy-package/README.md
+    
+    - name: Upload deployment artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: s-ui-deploy-packages
+        path: |
+          s-ui-deploy-amd64.tar.gz
+          s-ui-deploy-arm64.tar.gz
+        retention-days: 30
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Download artifacts
+      uses: actions/download-artifact@v3
+      with:
+        name: s-ui-deploy-packages
+    
+    - name: Setup SSH
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
+        ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+    
+    - name: Deploy to server
+      env:
+        SERVER_HOST: ${{ secrets.SERVER_HOST }}
+        SERVER_USER: ${{ secrets.SERVER_USER }}
+        SERVER_PORT: ${{ secrets.SERVER_PORT || 22 }}
+        DEPLOY_PATH: ${{ secrets.DEPLOY_PATH || /usr/local/s-ui }}
+      run: |
+        # 检测服务器架构
+        ARCH=$(ssh -p $SERVER_PORT $SERVER_USER@$SERVER_HOST "uname -m")
+        
+        # 选择对应的二进制文件
+        if [ "$ARCH" = "x86_64" ]; then
+          TAR_FILE="s-ui-deploy-amd64.tar.gz"
+        elif [ "$ARCH" = "aarch64" ]; then
+          TAR_FILE="s-ui-deploy-arm64.tar.gz"
+        else
+          echo "Unsupported architecture: $ARCH"
+          exit 1
+        fi
+        
+        echo "Deploying $TAR_FILE to $SERVER_HOST (architecture: $ARCH)"
+        
+        # 上传部署包
+        scp -P $SERVER_PORT $TAR_FILE $SERVER_USER@$SERVER_HOST:/tmp/
+        
+        # 在服务器上执行部署
+        ssh -p $SERVER_PORT $SERVER_USER@$SERVER_HOST << 'ENDSSH'
+          set -e
+          
+          # 停止服务
+          systemctl stop s-ui || true
+          
+          # 备份
+          if [ -f $DEPLOY_PATH/s-ui ]; then
+            cp $DEPLOY_PATH/s-ui $DEPLOY_PATH/s-ui.backup.$(date +%Y%m%d_%H%M%S)
+          fi
+          if [ -d $DEPLOY_PATH/web ]; then
+            cp -r $DEPLOY_PATH/web $DEPLOY_PATH/web.backup.$(date +%Y%m%d_%H%M%S)
+          fi
+          if [ -d $DEPLOY_PATH/db ]; then
+            cp -r $DEPLOY_PATH/db $DEPLOY_PATH/db.backup.$(date +%Y%m%d_%H%M%S)
+          fi
+          
+          # 解压部署包
+          cd /tmp
+          tar -xzf $TAR_FILE
+          
+          # 部署新文件
+          mkdir -p $DEPLOY_PATH
+          cp s-ui $DEPLOY_PATH/
+          chmod +x $DEPLOY_PATH/s-ui
+          
+          rm -rf $DEPLOY_PATH/web
+          cp -r web $DEPLOY_PATH/
+          
+          # 更新服务文件（如果需要）
+          if [ -f s-ui.service ]; then
+            cp s-ui.service /etc/systemd/system/
+            systemctl daemon-reload
+          fi
+          
+          # 启动服务
+          systemctl enable s-ui
+          systemctl start s-ui
+          
+          # 检查状态
+          sleep 3
+          systemctl status s-ui --no-pager || true
+          
+          # 清理
+          rm -rf /tmp/s-ui /tmp/web /tmp/s-ui.service /tmp/$TAR_FILE
+          
+          echo "Deployment completed successfully!"
+        ENDSSH
+    
+    - name: Verify deployment
+      env:
+        SERVER_HOST: ${{ secrets.SERVER_HOST }}
+        SERVER_USER: ${{ secrets.SERVER_USER }}
+        SERVER_PORT: ${{ secrets.SERVER_PORT || 22 }}
+      run: |
+        # 检查服务状态
+        ssh -p $SERVER_PORT $SERVER_USER@$SERVER_HOST "systemctl status s-ui --no-pager"
+        
+        # 检查日志
+        ssh -p $SERVER_PORT $SERVER_USER@$SERVER_HOST "journalctl -u s-ui -n 20 --no-pager"
