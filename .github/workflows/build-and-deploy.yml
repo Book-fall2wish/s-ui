@@ -101,8 +101,8 @@ jobs:
       env:
         SERVER_HOST: ${{ secrets.SERVER_HOST }}
         SERVER_USER: ${{ secrets.SERVER_USER }}
-        SERVER_PORT: ${{ secrets.SERVER_PORT || 22 }}
-        DEPLOY_PATH: ${{ secrets.DEPLOY_PATH || /usr/local/s-ui }}
+        SERVER_PORT: ${{ secrets.SERVER_PORT }}
+        DEPLOY_PATH: /usr/local/s-ui
       run: |
         # 检测服务器架构
         ARCH=$(ssh -p $SERVER_PORT $SERVER_USER@$SERVER_HOST "uname -m")
@@ -125,6 +125,8 @@ jobs:
         # 在服务器上执行部署
         ssh -p $SERVER_PORT $SERVER_USER@$SERVER_HOST << 'ENDSSH'
           set -e
+          
+          DEPLOY_PATH="/usr/local/s-ui"
           
           # 停止服务
           systemctl stop s-ui || true
