@@ -389,6 +389,10 @@ func (s *ClientService) findInboundsChanges(tx *gorm.DB, client model.Client) ([
 	return diffInbounds, nil
 }
 
+// ResetTrafficForClients resets traffic usage for clients based on their reset configuration.
+// Supports both monthly reset on specific days and periodic 30-day cycles.
+// Expired clients are automatically skipped during reset operations.
+// ResetTrafficForClients 根据客户端的重置配置重置流量使用情况。支持每月固定日期重置和30天周期重置。过期客户端会自动跳过。
 func (s *ClientService) ResetTrafficForClients() error {
 	db := database.GetDB()
 	now := time.Now()
@@ -411,20 +415,20 @@ func (s *ClientService) ResetTrafficForClients() error {
 	for _, client := range clients {
 		shouldReset := false
 
-		// 检查是否需要重置流量
+		// Check if traffic reset is needed / 检查是否需要重置流量
 		if client.TrafficResetDay == currentDay {
-			// 如果设置了重置日，并且当前日期匹配
+			// If reset day is set and current date matches / 如果设置了重置日，并且当前日期匹配
 			shouldReset = true
 
-			// 如果设置了过期时间，检查是否在过期日期范围内
+			// If expiry is set, check if within expiry period / 如果设置了过期时间，检查是否在过期日期范围内
 			if client.Expiry > 0 && currentTime > client.Expiry {
-				// 客户端已过期，不重置流量
+				// Client expired, don't reset traffic / 客户端已过期，不重置流量
 				shouldReset = false
 			}
 		} else if client.LastTrafficReset > 0 {
-			// 检查是否是周期性重置（例如每30天）
-			// 如果上次重置时间在30天前，则重置
-			resetInterval := int64(30 * 24 * 60 * 60) // 30天的秒数
+			// Check if it's periodic reset (e.g., every 30 days) / 检查是否是周期性重置（例如每30天）
+			// If last reset was more than 30 days ago, then reset / 如果上次重置时间在30天前，则重置
+			resetInterval := int64(30 * 24 * 60 * 60) // 30 days in seconds / 30天的秒数
 			if currentTime-client.LastTrafficReset >= resetInterval {
 				shouldReset = true
 			}
@@ -433,7 +437,7 @@ func (s *ClientService) ResetTrafficForClients() error {
 		if shouldReset {
 			logger.Debug("Resetting traffic for client: ", client.Name)
 
-			// 重置流量使用情况
+			// Reset traffic usage / 重置流量使用情况
 			err = tx.Model(model.Client{}).Where("id = ?", client.Id).Updates(map[string]interface{}{
 				"up":                 int64(0),
 				"down":               int64(0),

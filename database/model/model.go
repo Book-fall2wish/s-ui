@@ -22,6 +22,8 @@ type User struct {
 	LastLogins string `json:"lastLogin"`
 }
 
+// Client represents a user/client in the system with traffic management capabilities.
+// Client 表示系统中的用户/客户端，具有流量管理功能。
 type Client struct {
 	Id               uint            `json:"id" form:"id" gorm:"primaryKey;autoIncrement"`
 	Enable           bool            `json:"enable" form:"enable"`
@@ -35,8 +37,8 @@ type Client struct {
 	Up               int64           `json:"up" form:"up"`
 	Desc             string          `json:"desc" form:"desc"`
 	Group            string          `json:"group" form:"group"`
-	TrafficResetDay  int             `json:"trafficResetDay" form:"trafficResetDay"`   // 流量重置日，例如每月的某一天
-	LastTrafficReset int64           `json:"lastTrafficReset" form:"lastTrafficReset"` // 上次流量重置时间戳
+	TrafficResetDay  int             `json:"trafficResetDay" form:"trafficResetDay"`   // Traffic reset day, e.g., specific day of each month / 流量重置日，例如每月的某一天
+	LastTrafficReset int64           `json:"lastTrafficReset" form:"lastTrafficReset"` // Last traffic reset timestamp / 上次流量重置时间戳
 }
 
 type Stats struct {
